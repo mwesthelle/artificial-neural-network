@@ -1,7 +1,7 @@
 {
     "executionEnvironments": [
         {
-            "root": "random_forests"
+            "root": "artificial_neural_network"
         }
     ]
 }

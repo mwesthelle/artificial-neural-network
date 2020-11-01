@@ -1,7 +1,10 @@
 from pathlib import Path
+from typing import Iterable, List
+
+from base_model import BaseModel
 
 
-class MLP:
+class MLP(BaseModel):
     def __init__(
         self,
         layers: list[int] = [],
@@ -30,3 +33,15 @@ class MLP:
 
     def load_weights(self, weights_file: Path):
         weights_file = Path(weights_file)
+
+    def forward_pass(self):
+        pass
+
+    def backpropagation(self):
+        pass
+
+    def fit(self, data_iter: Iterable[List[str]], attribute_names: List[str]):
+        pass
+
+    def predict(self, test_data: Iterable[List[str]]):
+        pass

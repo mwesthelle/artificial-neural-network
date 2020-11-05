@@ -8,7 +8,7 @@ from base_model import BaseModel
 
 
 class MLP(BaseModel):
-    def __init__(self, *layers: int, regularization: float = 0):
+    def __init__(self, layers: List[int] = [], regularization: float = 0):
         """
         This is a basic implementation of a MultiLayer Perceptron (MLP).
 
@@ -28,16 +28,30 @@ class MLP(BaseModel):
             A dictionary where each key represents a layer and its value contains its
             respective weights
         """
-        self._layers = layers
-        self._regularization = regularization
+        self.__layers = layers
+        self.__regularization = regularization
 
     @property
     def layers(self):
-        return self._layers
+        return self.__layers
+
+    @layers.setter
+    def layers(self, values):
+        for val in values:
+            if val <= 0:
+                raise AttributeError("layers must have a positive number of neurons")
+        self.__layers = values
 
     @property
     def regularization(self):
-        return self._regularization
+        return self.__regularization
+
+    @regularization.setter
+    def regularization(self, value):
+        if value >= 0:
+            self.__regularization = value
+        else:
+            raise AttributeError("regularization must be a non-negative value")
 
     def initialize_weights(self):
         if not hasattr(self, "_weights"):
@@ -64,6 +78,17 @@ class MLP(BaseModel):
                 layer_weights = np.array([float(val) for val in layer_weights_text])
                 layer_weights = layer_weights.reshape((rows, cols))
                 self.weights[idx] = layer_weights
+
+    def load_network_definition(self, network_def_filename: str):
+        network_def_file = Path(network_def_filename).resolve(strict=True)
+        with network_def_file.open() as f:
+            reg_factor = f.readline().strip()
+            self.regularization = float(reg_factor)
+            layers = []
+            for line in f:
+                layer = int(line.strip())
+                layers.append(layer)
+            self.layers = layers
 
     def forward_pass(self):
         pass

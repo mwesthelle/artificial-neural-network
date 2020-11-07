@@ -149,12 +149,4 @@ class MLP(BaseModel):
         pass
 
     def cost_function(self, y_pred, y):
-        m = len(y)
-        regularization_term = 0
-        for theta in self.weights:
-            regularization_term += theta[:, 1:] ** 2
-        cost = -(1 / m) * ((y.T @ np.log(y_pred)) + ((1 - y.T) @ np.log(1 - y_pred)))
-        +(self.lambda_ / (2 * m) * regularization_term)
-        return cost
-
-if __name__ == "__main__":
+        pass

@@ -148,7 +148,7 @@ class MLP(BaseModel):
     def predict(self, test_data: Iterable[List[str]]):
         pass
 
-    def cost_function(self, X, y, num_labels: int):
+    def cost_function(self, X, y):
         m = len(X)
         J = 0
         for x_, y_ in zip(X, y):

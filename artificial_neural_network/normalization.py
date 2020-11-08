@@ -14,12 +14,12 @@ class DatasetNormalizer:
 
     def check_for_numerical_categorical_cols(self):
         for column in self.dataset.columns:
-            if self.is_numerical_categorical_data(column) \
+            if self.has_few_possible_values(column) \
                     and self.is_numerical_data(column):
                 self.dataset[column] = self.dataset[column].apply(str)
                 self.dataset[column] = self.dataset[column].astype(str)
 
-    def is_numerical_categorical_data(self, column):
+    def has_few_possible_values(self, column):
         return len(self.dataset[column].unique()) < self.MAX_COLS_FOR_CATEGORICAL_DATA
 
     def is_categorical_data(self, column):
@@ -27,10 +27,11 @@ class DatasetNormalizer:
 
     def normalize(self):
         self.check_for_numerical_categorical_cols()
-        self.create_one_hot_representation()
+        self.normalize_categorical_cols()
+        self.normalize_numerical_cols()
         return self.dataset
 
-    def create_one_hot_representation(self):
+    def normalize_categorical_cols(self):
         for column in self.dataset.columns:
             if self.is_categorical_data(column):
                 self.crate_one_hot_representation_for_column(column)
@@ -46,3 +47,15 @@ class DatasetNormalizer:
 
     def get_dataset(self):
         return self.dataset
+
+    def normalize_numerical_cols(self):
+        for column in self.dataset.columns:
+            if self.is_numerical_data(column):
+                self.normalize_numerical_column(column)
+
+    def normalize_numerical_column(self, column):
+        max_ = max(self.dataset[column])
+        min_ = min(self.dataset[column])
+        self.dataset[column] = self.dataset[column]\
+            .apply(lambda x: (x - min_) / (max_ - min_))
+

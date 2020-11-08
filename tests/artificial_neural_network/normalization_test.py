@@ -10,7 +10,8 @@ class TestDatasetNormalizer:
         return DatasetNormalizer(
             pd.DataFrame.from_dict({
                 'num_categ': [3, 2, 1, 0],
-                'categ': ['a', 'b', 'c', 'd']
+                'categ': ['a', 'b', 'c', 'd'],
+                'numerical': [1.0, 2.0, 2.0, 3.0]
             })
         )
 
@@ -36,3 +37,8 @@ class TestDatasetNormalizer:
         dataset = simple_dataset_normalizer.normalize()
         assert 'categ_a' in dataset.columns
         assert 'num_categ_0' in dataset.columns
+
+    def test_normalize_numerical_cols(self, simple_dataset_normalizer):
+        simple_dataset_normalizer.normalize_numerical_cols()
+        dataset = simple_dataset_normalizer.get_dataset()
+        assert dataset['numerical'].equals(pd.Series([0.0, 0.5, 0.5, 1.0]))

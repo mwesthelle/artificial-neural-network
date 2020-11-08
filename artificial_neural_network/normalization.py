@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from pandas.api.types import is_numeric_dtype
 
 
 def normalize_dataset(dataset: pd.DataFrame):
@@ -52,8 +53,7 @@ class DatasetNormalizer:
         return len(self.dataset[column].unique()) < self.MAX_COLS_FOR_CATEGORICAL_DATA
 
     def is_numerical_data(self, column):
-        return self.dataset[column].dtype == np.float64 \
-            or self.dataset[column].dtype == np.int64
+        return is_numeric_dtype(self.dataset[column])
 
     def is_categorical_data(self, column):
         return not self.is_numerical_data(column)

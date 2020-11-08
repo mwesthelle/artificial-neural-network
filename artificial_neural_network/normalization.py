@@ -27,19 +27,19 @@ class DatasetNormalizer:
 
     def normalize(self):
         self.check_for_numerical_categorical_cols()
-        self.check_for_categorical_cols()
+        self.create_one_hot_representation()
         return self.dataset
 
-    def check_for_categorical_cols(self):
+    def create_one_hot_representation(self):
         for column in self.dataset.columns:
             if self.is_categorical_data(column):
-                self.separate_column(column)
+                self.crate_one_hot_representation_for_column(column)
 
     def is_numerical_data(self, column):
         return self.dataset[column].dtype == np.float64 \
             or self.dataset[column].dtype == np.int64
 
-    def separate_column(self, column):
+    def crate_one_hot_representation_for_column(self, column):
         for distinct_value in self.dataset[column].unique():
             self.dataset[f'{column}_{distinct_value}'] = \
                 self.dataset[column].apply(lambda x: 0 if x != distinct_value else 1)

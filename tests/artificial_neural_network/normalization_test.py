@@ -23,7 +23,7 @@ class TestDatasetNormalizer:
         assert simple_dataset_normalizer.is_categorical_data('num_categ')
 
     def test_separate_column(self, simple_dataset_normalizer):
-        simple_dataset_normalizer.separate_column('categ')
+        simple_dataset_normalizer.crate_one_hot_representation_for_column('categ')
         dataset = simple_dataset_normalizer.get_dataset()
         assert 'categ_a' in dataset.columns
         assert 'categ_b' in dataset.columns

@@ -5,7 +5,7 @@ from typing import Iterable, List
 import numpy as np
 
 from base_model import BaseModel
-from sigmoid import sigmoid
+from sigmoid import sigmoid, sigmoid_prime
 
 
 class UninitializedNetworkError(Exception):
@@ -50,13 +50,14 @@ class MLP(BaseModel):
         """
         self._layers = layers
         self._lambda = lambda_
-        self._weights = dict()
+        self.weights = dict()
+        self.gradients = None
         layer2size = {idx: size for idx, size in enumerate(self.layers)}
         for idx in range(len(self.layers) - 1):
             rows = layer2size[idx + 1]
             # Add bias column
             cols = layer2size[idx] + 1
-            self._weights[idx] = np.random.normal(size=(rows, cols))
+            self.weights[idx] = np.random.normal(size=(rows, cols))
 
     @property
     def layers(self):
@@ -79,15 +80,7 @@ class MLP(BaseModel):
         if value >= 0:
             self._lambda = value
         else:
-            raise AttributeError("regularization must be a non-negative value")
-
-    @property
-    def weights(self):
-        return self._weights
-
-    @weights.setter
-    def weights(self, value):
-        self._weights = value
+            raise AttributeError("regularization factor must be a non-negative value")
 
     def load_weights(self, weights_filename: str):
         weights_file = Path(weights_filename).resolve(strict=True)
@@ -113,7 +106,7 @@ class MLP(BaseModel):
                         f"weights are incompatible with network structure; {err}"
                     )
                 else:
-                    self.weights[idx] = layer_weights
+                    self.weights[idx + 1] = layer_weights
 
     def load_network_definition(self, network_def_filename: str):
         network_def_file = Path(network_def_filename).resolve(strict=True)
@@ -127,19 +120,44 @@ class MLP(BaseModel):
             self.layers = layers
 
     def forward_pass(self, X):
+        """
+        Gets X as a 1-D np.array of inputs and returns an output prediction and the
+        layers' activations for use in backpropagation
+        """
         a = dict()
         z = dict()
-        a[0] = np.ones((1, X.shape[0] + 1))
-        a[0][:, 1:] = X
-        for k in range(1, len(self.layers) - 1):
+        a[1] = np.ones(X.shape[0] + 1)
+        a[1][1:] = X
+        for k in range(2, len(self.layers)):
             z[k] = a[k - 1] @ self.weights[k - 1].T
-            a[k] = np.ones((z[k].shape[0], z[k].shape[1] + 1))
-            a[k][:, 1:] = sigmoid(z[k])
-        last_layer = len(self.layers) - 1
+            a[k] = np.ones(z[k].shape[0] + 1)
+            a[k][1:] = sigmoid(z[k])
+        last_layer = len(self.layers)
         z[last_layer] = a[last_layer - 1] @ self.weights[last_layer - 1].T
-        return sigmoid(z[last_layer])
+        a[last_layer] = sigmoid(z[last_layer])
+        return a[last_layer], a, z
 
-    def backpropagation(self):
+    def calculate_deltas(self, y_pred, y, z):
+        deltas = dict()
+        deltas[len(self.layers)] = np.array([y_pred - y]).T
+        for i in range(len(self.layers) - 1, 1, -1):
+            sig_prime = sigmoid_prime(np.array([z[i]]))
+            deltas[i] = self.weights[i][:, 1:].T @ deltas[i + 1] * sig_prime.T
+        return deltas
+
+    def update_gradients(self, deltas, activations):
+        if not self.gradients:
+            self.gradients = dict()
+            for i in range(len(self.layers) - 1, 0, -1):
+                self.gradients[i] = np.zeros((self.weights[i].shape))
+        for i in range(1, len(self.layers)):
+            self.gradients[i] = deltas[i + 1].T * activations[i][:, None]
+
+    def backpropagation(self, X, y):
+        for x_, y_ in zip(X, y):
+            h, a, z = self.forward_pass(x_)
+            deltas = self.calculate_deltas(h, y_, z)
+            self.update_gradients(deltas, a)
         pass
 
     def fit(self, data_iter: Iterable[List[str]], classes: List[str]):
@@ -160,3 +178,12 @@ class MLP(BaseModel):
             * np.sum(np.linalg.norm(theta) ** 2 for theta in self.weights.values())
         )
         return J
+
+
+if __name__ == "__main__":
+    mlp = MLP(layers=[2, 4, 3, 2], lambda_=0.25)
+    mlp.load_weights("benchmarks/test_weights_2.txt")
+    X = np.array([[0.32, 0.68]])
+    y = np.array([[0.75, 0.98]])
+    h = mlp.backpropagation(X, y)
+    print(h)

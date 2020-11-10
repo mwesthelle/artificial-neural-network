@@ -129,12 +129,12 @@ class MLP(BaseModel):
     def forward_pass(self, X):
         a = dict()
         z = dict()
-        a[0] = np.ones((X.shape[0], X.shape[1] + 1))
+        a[0] = np.ones((1, X.shape[0] + 1))
         a[0][:, 1:] = X
         for k in range(1, len(self.layers) - 1):
             z[k] = a[k - 1] @ self.weights[k - 1].T
             a[k] = np.ones((z[k].shape[0], z[k].shape[1] + 1))
-            a[k] = sigmoid(a[k])
+            a[k][:, 1:] = sigmoid(z[k])
         last_layer = len(self.layers) - 1
         z[last_layer] = a[last_layer - 1] @ self.weights[last_layer - 1].T
         return sigmoid(z[last_layer])
@@ -142,11 +142,21 @@ class MLP(BaseModel):
     def backpropagation(self):
         pass
 
-    def fit(self, data_iter: Iterable[List[str]], attribute_names: List[str]):
+    def fit(self, data_iter: Iterable[List[str]], classes: List[str]):
         pass
 
     def predict(self, test_data: Iterable[List[str]]):
         pass
 
-    def cost_function(self, y_pred, y):
-        pass
+    def cost_function(self, X, y):
+        m = len(X)
+        J = 0
+        for x_, y_ in zip(X, y):
+            h = self.forward_pass(x_)
+            J += np.sum(np.nan_to_num(-y_ * np.log(h) - (1 - y) * np.log(1 - h)))
+        J += (
+            self.lambda_
+            / (2 * m)
+            * np.sum(np.linalg.norm(theta) ** 2 for theta in self.weights.values())
+        )
+        return J

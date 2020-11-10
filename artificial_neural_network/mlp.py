@@ -35,7 +35,13 @@ class MLP(BaseModel):
         regularization factor; must be a non-negative float
     """
 
-    def __init__(self, layers: List[int] = [], lambda_: float = 0):
+    def __init__(
+        self,
+        layers: List[int] = [],
+        lambda_: float = 0,
+        weight_file: str = None,
+        net_file: str = None,
+    ):
         """
         Parameters
         ----------
@@ -48,16 +54,23 @@ class MLP(BaseModel):
             regularization factor; must be a non-negative float
 
         """
-        self._layers = layers
-        self._lambda = lambda_
-        self.weights = dict()
         self.gradients = None
+        self.learning_rate = 0.001
+        if net_file:
+            self.load_network_definition(net_file)
+        else:
+            self._layers = layers
+            self._lambda = lambda_
         layer2size = {idx: size for idx, size in enumerate(self.layers)}
-        for idx in range(len(self.layers) - 1):
-            rows = layer2size[idx + 1]
-            # Add bias column
-            cols = layer2size[idx] + 1
-            self.weights[idx] = np.random.normal(size=(rows, cols))
+        if weight_file:
+            self.load_weights(weight_file)
+        else:
+            self.weights = dict()
+            for idx in range(len(self.layers) - 1):
+                rows = layer2size[idx + 1]
+                # Add bias column
+                cols = layer2size[idx] + 1
+                self.weights[idx] = np.random.normal(size=(rows, cols))
 
     @property
     def layers(self):
@@ -151,16 +164,28 @@ class MLP(BaseModel):
             for i in range(len(self.layers) - 1, 0, -1):
                 self.gradients[i] = np.zeros((self.weights[i].shape))
         for i in range(1, len(self.layers)):
-            self.gradients[i] = deltas[i + 1].T * activations[i][:, None]
+            self.gradients[i] = (
+                self.gradients[i] + deltas[i + 1] @ activations[i][None, :]
+            )
+
+    def update_weights(self):
+        for i in self.weights:
+            self.weights[i] -= self.learning_rate * self.gradients[i]
 
     def backpropagation(self, X, y):
+        m = len(X)
         for x_, y_ in zip(X, y):
             h, a, z = self.forward_pass(x_)
             deltas = self.calculate_deltas(h, y_, z)
             self.update_gradients(deltas, a)
-        pass
+        P = dict()
+        for i in self.gradients:
+            P[i] = self.lambda_ * self.weights[i]
+            P[i][:, 0] = 0
+            self.gradients[i] = (1 / m) * (self.gradients[i] + P[i])
+        self.update_weights()
 
-    def fit(self, data_iter: Iterable[List[str]], classes: List[str]):
+    def fit(self, data_iter: List[str], classes: List[str]):
         pass
 
     def predict(self, test_data: Iterable[List[str]]):
@@ -178,12 +203,3 @@ class MLP(BaseModel):
             * np.sum(np.linalg.norm(theta) ** 2 for theta in self.weights.values())
         )
         return J
-
-
-if __name__ == "__main__":
-    mlp = MLP(layers=[2, 4, 3, 2], lambda_=0.25)
-    mlp.load_weights("benchmarks/test_weights_2.txt")
-    X = np.array([[0.32, 0.68]])
-    y = np.array([[0.75, 0.98]])
-    h = mlp.backpropagation(X, y)
-    print(h)

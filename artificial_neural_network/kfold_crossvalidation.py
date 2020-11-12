@@ -2,12 +2,14 @@ import random
 from collections import defaultdict
 from fractions import Fraction
 from itertools import chain
-from typing import Dict, List
+from typing import Dict, List, NewType, cast
 
 import numpy as np
 
 from base_model import BaseModel
 from metrics import accuracy
+
+FoldType = NewType("FoldType", List[List[List[str]]])
 
 
 class KFoldCrossValidation:
@@ -45,19 +47,19 @@ class KFoldCrossValidation:
         self._line_offsets: List[int] = []
         self.headers = []
 
-    def index_dataset(self, filename: str):
+    def index_dataset(self, file_handle):
         offset: int = 0
         self._line_offsets.clear()
-        with open(filename, "rb") as dataset:
-            dataset.seek(0)
-            headers = next(dataset)
-            offset += len(headers)
-            self.headers = headers.decode("utf-8").strip().split(self.delimiter)
-            for idx, row in enumerate(dataset):
-                self._line_offsets.append(offset)
-                offset += len(row)
-                values = row.decode("utf-8").strip().split(self.delimiter)
-                self.klass_idxes[values[-1]].append(idx)
+        file_handle.seek(0)
+        headers = next(file_handle)
+        offset += len(headers)
+        self.headers = headers.decode("utf-8").strip().split(self.delimiter)
+        for idx, row in enumerate(file_handle):
+            self._line_offsets.append(offset)
+            offset += len(row)
+            values = row.decode("utf-8").strip().split(self.delimiter)
+            self.klass_idxes[values[-1]].append(idx)
+        file_handle.seek(0)
 
     def generate_stratified_fold(self, k_folds: int) -> List[int]:
         """
@@ -97,41 +99,43 @@ class KFoldCrossValidation:
                 fold.append(chosen_idx)
         return fold
 
+    def create_k_folds(self, file_handle, k_folds, seed):
+        random.seed(seed)
+        self.index_dataset(file_handle)
+        folds: FoldType = FoldType([])
+        for _ in range(k_folds):
+            fold_rows: List[List[str]] = []
+            for idx in self.generate_stratified_fold(k_folds):
+                file_handle.seek(self._line_offsets[idx])
+                line = file_handle.readline().decode("utf-8").strip()
+                data = line.split(self.delimiter)
+                fold_rows.append(data)
+            folds.append(fold_rows)
+
+        remaining_idxs = []
+        for klass in self.klass_idxes:
+            if len(idxes := self.klass_idxes[klass]) > 0:
+                remaining_idxs.extend(idxes)
+        self.klass_idxes.clear()
+        remaining_data = []
+        for idx in remaining_idxs:
+            file_handle.seek(self._line_offsets[idx])
+            line = file_handle.readline().decode("utf-8").strip()
+            data = line.split(self.delimiter)
+            remaining_data.append(data)
+        folds[-1].extend(remaining_data)
+        file_handle.seek(0)
+        return folds
+
     def kfold_cross_validation(
         self, filename: str, k_folds: int = 10, repetitions: int = 1,
     ):
         results = []
         for i_repetition in range(repetitions):
-            with open(filename, "rb") as dataset:
-                random.seed(i_repetition * 3)
-                self.index_dataset(filename)
-                folds: List[List[List[str]]] = []
-                for _ in range(k_folds):
-                    fold_rows: List[List[str]] = []
-                    for idx in self.generate_stratified_fold(k_folds):
-                        dataset.seek(self._line_offsets[idx])
-                        fold_rows.append(
-                            dataset.readline()
-                            .decode("utf-8")
-                            .strip()
-                            .split(self.delimiter)
-                        )
-                    folds.append(fold_rows)
-
-                remaining_idxs = []
-                for klass in self.klass_idxes:
-                    if len(idxes := self.klass_idxes[klass]) > 0:
-                        remaining_idxs.extend(idxes)
-                self.klass_idxes.clear()
-                remaining_data = []
-                for idx in remaining_idxs:
-                    dataset.seek(self._line_offsets[idx])
-                    remaining_data.append(
-                        dataset.readline().decode("utf-8").strip().split(self.delimiter)
-                    )
-                folds[-1].extend(remaining_data)
-
-            fold_idxes: List[int] = list(range(len(folds)))
+            with open(filename, "rb") as f:
+                seed = i_repetition * 3 + 2
+                folds = self.create_k_folds(f, k_folds, seed)
+            fold_idxes: List[int] = list(range(len(cast(FoldType, folds))))
             random.shuffle(fold_idxes)
             all_folds_results = []
             for i in range(k_folds):

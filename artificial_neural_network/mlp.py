@@ -5,7 +5,7 @@ from typing import Iterable, List
 import numpy as np
 
 from base_model import BaseModel
-from sigmoid import sigmoid
+from sigmoid import sigmoid, sigmoid_prime
 
 
 class UninitializedNetworkError(Exception):
@@ -35,7 +35,13 @@ class MLP(BaseModel):
         regularization factor; must be a non-negative float
     """
 
-    def __init__(self, layers: List[int] = [], lambda_: float = 0):
+    def __init__(
+        self,
+        layers: List[int] = [],
+        lambda_: float = 0,
+        weight_file: str = None,
+        net_file: str = None,
+    ):
         """
         Parameters
         ----------
@@ -48,15 +54,23 @@ class MLP(BaseModel):
             regularization factor; must be a non-negative float
 
         """
-        self._layers = layers
-        self._lambda = lambda_
-        self._weights = dict()
+        self.gradients = None
+        self.learning_rate = 0.001
+        if net_file:
+            self.load_network_definition(net_file)
+        else:
+            self._layers = layers
+            self._lambda = lambda_
         layer2size = {idx: size for idx, size in enumerate(self.layers)}
-        for idx in range(len(self.layers) - 1):
-            rows = layer2size[idx + 1]
-            # Add bias column
-            cols = layer2size[idx] + 1
-            self._weights[idx] = np.random.normal(size=(rows, cols))
+        if weight_file:
+            self.load_weights(weight_file)
+        else:
+            self.weights = dict()
+            for idx in range(len(self.layers) - 1):
+                rows = layer2size[idx + 1]
+                # Add bias column
+                cols = layer2size[idx] + 1
+                self.weights[idx] = np.random.normal(size=(rows, cols))
 
     @property
     def layers(self):
@@ -79,15 +93,7 @@ class MLP(BaseModel):
         if value >= 0:
             self._lambda = value
         else:
-            raise AttributeError("regularization must be a non-negative value")
-
-    @property
-    def weights(self):
-        return self._weights
-
-    @weights.setter
-    def weights(self, value):
-        self._weights = value
+            raise AttributeError("regularization factor must be a non-negative value")
 
     def load_weights(self, weights_filename: str):
         weights_file = Path(weights_filename).resolve(strict=True)
@@ -113,7 +119,7 @@ class MLP(BaseModel):
                         f"weights are incompatible with network structure; {err}"
                     )
                 else:
-                    self.weights[idx] = layer_weights
+                    self.weights[idx + 1] = layer_weights
 
     def load_network_definition(self, network_def_filename: str):
         network_def_file = Path(network_def_filename).resolve(strict=True)
@@ -127,22 +133,59 @@ class MLP(BaseModel):
             self.layers = layers
 
     def forward_pass(self, X):
+        """
+        Gets X as a 1-D np.array of inputs and returns an output prediction and the
+        layers' activations for use in backpropagation
+        """
         a = dict()
         z = dict()
-        a[0] = np.ones((1, X.shape[0] + 1))
-        a[0][:, 1:] = X
-        for k in range(1, len(self.layers) - 1):
+        a[1] = np.ones(X.shape[0] + 1)
+        a[1][1:] = X
+        for k in range(2, len(self.layers)):
             z[k] = a[k - 1] @ self.weights[k - 1].T
-            a[k] = np.ones((z[k].shape[0], z[k].shape[1] + 1))
-            a[k][:, 1:] = sigmoid(z[k])
-        last_layer = len(self.layers) - 1
+            a[k] = np.ones(z[k].shape[0] + 1)
+            a[k][1:] = sigmoid(z[k])
+        last_layer = len(self.layers)
         z[last_layer] = a[last_layer - 1] @ self.weights[last_layer - 1].T
-        return sigmoid(z[last_layer])
+        a[last_layer] = sigmoid(z[last_layer])
+        return a[last_layer], a, z
 
-    def backpropagation(self):
-        pass
+    def calculate_deltas(self, y_pred, y, z):
+        deltas = dict()
+        deltas[len(self.layers)] = np.array([y_pred - y]).T
+        for i in range(len(self.layers) - 1, 1, -1):
+            sig_prime = sigmoid_prime(np.array([z[i]]))
+            deltas[i] = self.weights[i][:, 1:].T @ deltas[i + 1] * sig_prime.T
+        return deltas
 
-    def fit(self, data_iter: Iterable[List[str]], classes: List[str]):
+    def update_gradients(self, deltas, activations):
+        if not self.gradients:
+            self.gradients = dict()
+            for i in range(len(self.layers) - 1, 0, -1):
+                self.gradients[i] = np.zeros((self.weights[i].shape))
+        for i in range(1, len(self.layers)):
+            self.gradients[i] = (
+                self.gradients[i] + deltas[i + 1] @ activations[i][None, :]
+            )
+
+    def update_weights(self):
+        for i in self.weights:
+            self.weights[i] -= self.learning_rate * self.gradients[i]
+
+    def backpropagation(self, X, y):
+        m = len(X)
+        for x_, y_ in zip(X, y):
+            h, a, z = self.forward_pass(x_)
+            deltas = self.calculate_deltas(h, y_, z)
+            self.update_gradients(deltas, a)
+        P = dict()
+        for i in self.gradients:
+            P[i] = self.lambda_ * self.weights[i]
+            P[i][:, 0] = 0
+            self.gradients[i] = (1 / m) * (self.gradients[i] + P[i])
+        self.update_weights()
+
+    def fit(self, data_iter: List[str], classes: List[str]):
         pass
 
     def predict(self, test_data: Iterable[List[str]]):

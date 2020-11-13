@@ -196,6 +196,9 @@ class MLP(BaseModel):
 
     def fit_epoch(self, data_iter: List[str], classes: List[str]):
         self.backpropagation(data_iter, classes)
+        current_cost = self.evaluate_costs(data_iter, classes)
+        self.learning_curve.append(current_cost)
+        return current_cost
 
     def evaluate_costs(self, current_cost, previous_cost):
         return current_cost >= previous_cost  # TODO implement better logic
@@ -207,9 +210,7 @@ class MLP(BaseModel):
         previous_cost = 0
         should_continue = True
         while should_continue:
-            self.fit_epoch(data_iter, classes)
-            current_cost = self.cost_function(data_iter, classes)
-            self.learning_curve.append(current_cost)
+            current_cost = self.fit_epoch(data_iter, classes)
             should_continue = self.evaluate_costs(current_cost, previous_cost)
             if should_continue:
                 previous_cost = current_cost

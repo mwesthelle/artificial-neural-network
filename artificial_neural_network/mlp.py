@@ -1,4 +1,5 @@
 import re
+
 from pathlib import Path
 from typing import Iterable, List
 
@@ -56,6 +57,7 @@ class MLP(BaseModel):
         """
         self.gradients = None
         self.learning_rate = 0.001
+        self._lambda = lambda_
         if net_file:
             self.load_network_definition(net_file)
         else:
@@ -125,7 +127,7 @@ class MLP(BaseModel):
         network_def_file = Path(network_def_filename).resolve(strict=True)
         with network_def_file.open() as f:
             reg_factor = f.readline().strip()
-            self.regularization = float(reg_factor)
+            self._lambda = float(reg_factor)
             layers = []
             for line in f:
                 layer = int(line.strip())
@@ -172,17 +174,23 @@ class MLP(BaseModel):
         for i in self.weights:
             self.weights[i] -= self.learning_rate * self.gradients[i]
 
-    def backpropagation(self, X, y):
-        m = len(X)
-        for x_, y_ in zip(X, y):
-            h, a, z = self.forward_pass(x_)
-            deltas = self.calculate_deltas(h, y_, z)
-            self.update_gradients(deltas, a)
+    def regularize_gradients(self, m):
         P = dict()
         for i in self.gradients:
             P[i] = self.lambda_ * self.weights[i]
             P[i][:, 0] = 0
             self.gradients[i] = (1 / m) * (self.gradients[i] + P[i])
+
+    def backpropagation(self, X, y):
+        for x_, y_ in zip(X, y):
+            h, a, z = self.forward_pass(x_)
+            deltas = self.calculate_deltas(h, y_, z)
+            self.update_gradients(deltas, a)
+
+    def train(self, X, y):
+        self.backpropagation(X, y)
+        m = len(X)
+        self.regularize_gradients(m)
         self.update_weights()
 
     def fit(self, data_iter: List[str], classes: List[str]):

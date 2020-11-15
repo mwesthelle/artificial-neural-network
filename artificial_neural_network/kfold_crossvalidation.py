@@ -5,9 +5,12 @@ from itertools import chain
 from typing import Dict, List, NewType, cast
 
 import numpy as np
+import pandas as pd
 
 from base_model import BaseModel
 from metrics import accuracy
+
+from artificial_neural_network.normalization import normalize_dataset
 
 FoldType = NewType("FoldType", List[List[List[str]]])
 
@@ -61,6 +64,14 @@ class KFoldCrossValidation:
             self.klass_idxes[values[-1]].append(idx)
         file_handle.seek(0)
 
+    def create_normalized_file(self, file_path):
+        original_dataset = pd.read_csv(file_path, sep=self.delimiter)
+        normalized_dataset = normalize_dataset(original_dataset)
+        normalized_file_path = file_path[:-4] + '_normalized.csv'
+        normalized_dataset.to_csv(normalized_file_path, sep=self.delimiter)
+        file_handler = open(normalized_file_path)
+        return file_handler
+
     def generate_stratified_fold(self, k_folds: int) -> List[int]:
         """
         Generate a stratified fold by sampling our index map without repetition. The
@@ -99,8 +110,9 @@ class KFoldCrossValidation:
                 fold.append(chosen_idx)
         return fold
 
-    def create_k_folds(self, file_handle, k_folds, seed):
+    def create_k_folds(self, file_path, k_folds, seed):
         random.seed(seed)
+        file_handle = self.create_normalized_file(file_path)
         self.index_dataset(file_handle)
         folds: FoldType = FoldType([])
         for _ in range(k_folds):

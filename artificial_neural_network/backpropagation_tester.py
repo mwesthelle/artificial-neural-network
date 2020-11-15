@@ -37,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("network_file", help="Neural network specification file")
     parser.add_argument("weights_file", help="File containing initial weights")
     parser.add_argument("dataset_file", help="Dataset to run backpropagation on")
+    parser.add_argument("--check-gradients", action="store_true")
     args = parser.parse_args()
 
     model = MLP(net_file=args.network_file, weight_file=args.weights_file)
@@ -44,11 +45,15 @@ if __name__ == "__main__":
     X, y = list(zip(*data))
     X, y = map(np.array, (X, y))
     m = len(X)
-    model.backpropagation(X, y)
-    model.regularize_gradients(m)
-    for layer in model.gradients.values():
-        layer_grads = [list(neuron_grads) for neuron_grads in layer]
-        layer_grads = [
-            ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
-        ]
-        print("; ".join(layer_grads))
+    if args.check_gradients:
+        model.check_gradients(X, y)
+    else:
+        model.backpropagation(X, y)
+        for layer in sorted(model.gradients.keys()):
+            layer_grads = [
+                list(neuron_grads) for neuron_grads in model.gradients[layer]
+            ]
+            layer_grads = [
+                ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
+            ]
+            print("; ".join(layer_grads))

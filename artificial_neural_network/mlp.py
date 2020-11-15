@@ -233,23 +233,20 @@ class MLP(BaseModel):
         )
 
     def check_gradients(self, X, y):
-        EPSILON = 1e-6
+        EPSILON = 1e-3
         initial_weights = self.weights
-        self.backpropagation(X, y)
-        J_backprop = self.calculate_loss(X, y)
-        weights_plus_eps = {theta: val + EPSILON for theta, val in self.weights.items()}
-        weights_minus_eps = {
-            theta: val - EPSILON for theta, val in self.weights.items()
-        }
-        self.weights = weights_plus_eps
-        J_plus_eps = self.calculate_loss(X, y)
-        self.weights = weights_minus_eps
-        J_minus_eps = self.calculate_loss(X, y)
-        J_estimated = (J_plus_eps - J_minus_eps) / (2 * EPSILON)
-        print("backprop gradients")
-        print(J_backprop)
-        print("estimated_gradients")
-        print(J_estimated)
+        estimated_gradients = initial_weights.copy()
+        for theta in self.weights:
+            for neuron_idx, _ in enumerate(self.weights[theta]):
+                for idx, _ in enumerate(self.weights[theta][neuron_idx]):
+                    self.weights[theta][neuron_idx][idx] += EPSILON
+                    J_plus_eps = self.calculate_loss(X, y)
+                    self.weights[theta][neuron_idx][idx] -= 2 * EPSILON
+                    J_minus_eps = self.calculate_loss(X, y)
+                    estimated_gradients[theta][neuron_idx][idx] = (
+                        J_plus_eps - J_minus_eps
+                    ) / (2 * EPSILON)
+        pass
 
     @staticmethod
     def cost_function(y, y_pred):

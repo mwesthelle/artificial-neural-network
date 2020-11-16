@@ -46,7 +46,25 @@ if __name__ == "__main__":
     X, y = map(np.array, (X, y))
     m = len(X)
     if args.check_gradients:
-        model.check_gradients(X, y)
+        estimated_gradients = model.get_estimated_gradients(X, y)
+        model.backpropagation(X, y)
+        backprop_gradients = model.gradients
+        print("Estimated gradients:")
+        print(estimated_gradients)
+        print("Backpropagation gradients:")
+        print(backprop_gradients)
+        for grad in sorted(backprop_gradients.keys()):
+            is_close = np.isclose(
+                backprop_gradients[grad],
+                estimated_gradients[grad],
+                atol=1e-5,
+                rtol=1e-5,
+            )
+            for booleans in is_close:
+                if not all(booleans):
+                    print("Gradients don't match ):")
+        else:
+            print("Gradients match!")
     else:
         model.backpropagation(X, y)
         for layer in sorted(model.gradients.keys()):

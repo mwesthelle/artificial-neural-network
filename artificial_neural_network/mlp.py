@@ -232,10 +232,11 @@ class MLP(BaseModel):
             np.linalg.norm(theta[:, 1:]) ** 2 for theta in self.weights.values()
         )
 
-    def check_gradients(self, X, y):
-        EPSILON = 1e-3
-        initial_weights = self.weights
-        estimated_gradients = initial_weights.copy()
+    def get_estimated_gradients(self, X, y):
+        EPSILON = 1e-5
+        estimated_gradients = dict()
+        for theta in self.weights:
+            estimated_gradients[theta] = np.zeros(self.weights[theta].shape)
         for theta in self.weights:
             for neuron_idx, _ in enumerate(self.weights[theta]):
                 for idx, _ in enumerate(self.weights[theta][neuron_idx]):
@@ -246,7 +247,7 @@ class MLP(BaseModel):
                     estimated_gradients[theta][neuron_idx][idx] = (
                         J_plus_eps - J_minus_eps
                     ) / (2 * EPSILON)
-        pass
+        return estimated_gradients
 
     @staticmethod
     def cost_function(y, y_pred):

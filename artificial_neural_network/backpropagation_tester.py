@@ -37,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("network_file", help="Neural network specification file")
     parser.add_argument("weights_file", help="File containing initial weights")
     parser.add_argument("dataset_file", help="Dataset to run backpropagation on")
+    parser.add_argument("--check-gradients", action="store_true")
     args = parser.parse_args()
 
     model = MLP(net_file=args.network_file, weight_file=args.weights_file)
@@ -44,11 +45,33 @@ if __name__ == "__main__":
     X, y = list(zip(*data))
     X, y = map(np.array, (X, y))
     m = len(X)
-    model.backpropagation(X, y)
-    model.regularize_gradients(m)
-    for layer in model.gradients.values():
-        layer_grads = [list(neuron_grads) for neuron_grads in layer]
-        layer_grads = [
-            ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
-        ]
-        print("; ".join(layer_grads))
+    if args.check_gradients:
+        estimated_gradients = model.get_estimated_gradients(X, y)
+        model.backpropagation(X, y)
+        backprop_gradients = model.gradients
+        print("Estimated gradients:")
+        print(estimated_gradients)
+        print("Backpropagation gradients:")
+        print(backprop_gradients)
+        for grad in sorted(backprop_gradients.keys()):
+            is_close = np.isclose(
+                backprop_gradients[grad],
+                estimated_gradients[grad],
+                atol=1e-5,
+                rtol=1e-5,
+            )
+            for booleans in is_close:
+                if not all(booleans):
+                    print("Gradients don't match ):")
+        else:
+            print("Gradients match!")
+    else:
+        model.backpropagation(X, y)
+        for layer in sorted(model.gradients.keys()):
+            layer_grads = [
+                list(neuron_grads) for neuron_grads in model.gradients[layer]
+            ]
+            layer_grads = [
+                ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
+            ]
+            print("; ".join(layer_grads))

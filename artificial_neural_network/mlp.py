@@ -137,8 +137,8 @@ class MLP(BaseModel):
 
     def forward_pass(self, X):
         """
-        Gets X as a 1-D np.array of inputs and returns an output prediction and the
-        layers' activations for use in backpropagation
+        Given an input, return an output prediction and the layers' activations for use
+        in backpropagation
         """
         a = dict()
         z = dict()
@@ -183,28 +183,27 @@ class MLP(BaseModel):
             self.gradients[i] = (1 / m) * (self.gradients[i] + P[i])
 
     def backpropagation(self, X, y):
+        m = len(X)
         for x_, y_ in zip(X, y):
             h, a, z = self.forward_pass(x_)
             deltas = self.calculate_deltas(h, y_, z)
             self.update_gradients(deltas, a)
-
-    def train(self, X, y):
-        self.backpropagation(X, y)
-        m = len(X)
         self.regularize_gradients(m)
         self.update_weights()
+
+    def train(self, X, y):
+        m = len(X)
+        loss = self.calculate_loss(X, y)
+        self.backpropagation(X, y)
+
+    def evaluate_costs(self, current_cost, previous_cost):
+        return current_cost >= previous_cost  # TODO implement better logic
 
     def fit_epoch(self, data_iter: List[str], classes: List[str]):
         self.backpropagation(data_iter, classes)
         current_cost = self.evaluate_costs(data_iter, classes)
         self.learning_curve.append(current_cost)
         return current_cost
-
-    def evaluate_costs(self, current_cost, previous_cost):
-        return current_cost >= previous_cost  # TODO implement better logic
-
-    def get_learning_curve(self):
-        return self.learning_curve
 
     def fit(self, data_iter: List[str], classes: List[str]):
         previous_cost = 0
@@ -218,15 +217,38 @@ class MLP(BaseModel):
     def predict(self, test_data: Iterable[List[str]]):
         pass
 
-    def cost_function(self, X, y):
+    def calculate_loss(self, X, y):
         m = len(X)
         J = 0
         for x_, y_ in zip(X, y):
-            h = self.forward_pass(x_)
-            J += np.sum(np.nan_to_num(-y_ * np.log(h) - (1 - y) * np.log(1 - h)))
-        J += (
-            self.lambda_
-            / (2 * m)
-            * np.sum(np.linalg.norm(theta) ** 2 for theta in self.weights.values())
-        )
+            h, _, _ = self.forward_pass(x_)
+            J += self.cost_function(y_, h)
+        J /= m
+        J += self.lambda_ / (2 * m) * self.loss_regularization()
         return J
+
+    def loss_regularization(self):
+        return np.sum(
+            np.linalg.norm(theta[:, 1:]) ** 2 for theta in self.weights.values()
+        )
+
+    def get_estimated_gradients(self, X, y):
+        EPSILON = 1e-5
+        estimated_gradients = dict()
+        for theta in self.weights:
+            estimated_gradients[theta] = np.zeros(self.weights[theta].shape)
+        for theta in self.weights:
+            for neuron_idx, _ in enumerate(self.weights[theta]):
+                for idx, _ in enumerate(self.weights[theta][neuron_idx]):
+                    self.weights[theta][neuron_idx][idx] += EPSILON
+                    J_plus_eps = self.calculate_loss(X, y)
+                    self.weights[theta][neuron_idx][idx] -= 2 * EPSILON
+                    J_minus_eps = self.calculate_loss(X, y)
+                    estimated_gradients[theta][neuron_idx][idx] = (
+                        J_plus_eps - J_minus_eps
+                    ) / (2 * EPSILON)
+        return estimated_gradients
+
+    @staticmethod
+    def cost_function(y, y_pred):
+        return np.sum(np.nan_to_num(-y * np.log(y_pred) - (1 - y) * np.log(1 - y_pred)))

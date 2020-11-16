@@ -5,8 +5,10 @@ from typing import Iterable, List
 
 import numpy as np
 
-from base_model import BaseModel
-from sigmoid import sigmoid, sigmoid_prime
+from artificial_neural_network.base_model import BaseModel
+from artificial_neural_network.sigmoid import sigmoid, sigmoid_prime
+
+from artificial_neural_network.one_hot_encoder import OneHotEncoder
 
 
 class UninitializedNetworkError(Exception):
@@ -64,7 +66,8 @@ class MLP(BaseModel):
         self.learning_rate = 0.001
         self._lambda = lambda_
         self.learning_curve = []
-        self.classes_encoded = self.classes_to_one_hot_encode(classes_names)
+        self.one_hot_encoder = OneHotEncoder()
+        self.one_hot_encoder.encode(classes_names)
         if net_file:
             self.load_network_definition(net_file)
         else:
@@ -79,7 +82,7 @@ class MLP(BaseModel):
                 rows = layer2size[idx + 1]
                 # Add bias column
                 cols = layer2size[idx] + 1
-                self.weights[idx] = np.random.normal(size=(rows, cols))
+                self.weights[idx + 1] = np.random.normal(size=(rows, cols))
 
     @property
     def layers(self):
@@ -104,17 +107,8 @@ class MLP(BaseModel):
         else:
             raise AttributeError("regularization factor must be a non-negative value")
 
-    def classes_to_one_hot_encode(self, classes_names):
-        classes_set = set(classes_names)
-        classes_one_hot_dict = {}
-        for idx, class_name in enumerate(classes_set):
-            new_list = [0]*len(classes_set)
-            new_list[idx-1] = 1
-            classes_one_hot_dict[classes_names] = new_list
-        return classes_one_hot_dict
-
     def one_hot_encode_y(self, Y):
-        encoded_y = [self.classes_encoded[y] for y in Y]
+        encoded_y = [self.one_hot_encoder.label_to_decode(y) for y in Y]
         if type(Y) == list:
             return encoded_y
         return np.array(encoded_y)
@@ -260,15 +254,15 @@ class MLP(BaseModel):
             ]
             print("; ".join(layer_grads))
 
-    def get_predicted_class_by_index(self, index_predicted):
-        for key in self.classes_encoded.keys():
-            if self.classes_encoded[key][index_predicted] == 1:
-                return key
+    def get_predicted_class_by_probabilities(self, classes_probs):
+        list_of_zeros = [0] * len(classes_probs)
+        max_index = np.argmax(classes_probs)
+        list_of_zeros[max_index] = 1
+        return self.one_hot_encoder.decode(list_of_zeros)
 
     def predict(self, test_data: Iterable[List[str]]):
-        classes_probabilities = self.forward_pass(test_data)
-        max_index = classes_probabilities.index(max(classes_probabilities))
-        return self.get_predicted_class_by_index(max_index)
+        classes_probabilities, _, _ = self.forward_pass(test_data)
+        return self.get_predicted_class_by_probabilities(classes_probabilities)
 
     def calculate_loss(self, X, y):
         m = len(X)

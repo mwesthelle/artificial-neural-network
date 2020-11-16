@@ -13,9 +13,12 @@ class DatasetNormalizer:
         self.dataset = dataset
 
     def normalize(self):
+        target_column = self.dataset[self.dataset.columns[-1]]
+        self.drop_column(self.dataset.columns[-1])
         self.check_for_numerical_categorical_cols()
         self.normalize_categorical_cols()
         self.normalize_numerical_cols()
+        self.dataset['target'] = target_column
         return self.dataset
 
     def get_dataset(self):
@@ -43,11 +46,15 @@ class DatasetNormalizer:
             lambda x: (x - min_) / (max_ - min_)
         )
 
+    def drop_column(self, column):
+        self.dataset.drop(column, axis=1, inplace=True)
+
     def create_one_hot_representation_for_column(self, column):
         for distinct_value in self.dataset[column].unique():
             self.dataset[f"{column}_{distinct_value}"] = self.dataset[column].apply(
                 lambda x: 0 if x != distinct_value else 1
             )
+        self.drop_column(column)
 
     def has_few_possible_values(self, column):
         return len(self.dataset[column].unique()) < self.MAX_COLS_FOR_CATEGORICAL_DATA

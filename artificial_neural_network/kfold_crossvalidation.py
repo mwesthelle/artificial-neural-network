@@ -11,6 +11,7 @@ from base_model import BaseModel
 from metrics import accuracy
 
 from artificial_neural_network.normalization import normalize_dataset
+from mlp import MLP
 
 FoldType = NewType("FoldType", List[List[List[str]]])
 
@@ -67,10 +68,9 @@ class KFoldCrossValidation:
     def create_normalized_file(self, file_path):
         original_dataset = pd.read_csv(file_path, sep=self.delimiter)
         normalized_dataset = normalize_dataset(original_dataset)
-        normalized_file_path = file_path[:-4] + '_normalized.csv'
+        normalized_file_path = file_path[:-4] + "_normalized.csv"
         normalized_dataset.to_csv(normalized_file_path, sep=self.delimiter)
-        file_handler = open(normalized_file_path)
-        return file_handler
+        return normalized_file_path
 
     def generate_stratified_fold(self, k_folds: int) -> List[int]:
         """
@@ -110,9 +110,8 @@ class KFoldCrossValidation:
                 fold.append(chosen_idx)
         return fold
 
-    def create_k_folds(self, file_path, k_folds, seed):
+    def create_k_folds(self, file_handle, k_folds, seed):
         random.seed(seed)
-        file_handle = self.create_normalized_file(file_path)
         self.index_dataset(file_handle)
         folds: FoldType = FoldType([])
         for _ in range(k_folds):
@@ -143,8 +142,9 @@ class KFoldCrossValidation:
         self, filename: str, k_folds: int = 10, repetitions: int = 1,
     ):
         results = []
+        normalized_filename = self.create_normalized_file(filename)
         for i_repetition in range(repetitions):
-            with open(filename, "rb") as f:
+            with open(normalized_filename, "rb") as f:
                 seed = i_repetition * 3 + 2
                 folds = self.create_k_folds(f, k_folds, seed)
             fold_idxes: List[int] = list(range(len(cast(FoldType, folds))))
@@ -165,3 +165,9 @@ class KFoldCrossValidation:
             results.append(all_folds_results)
         print(f"Mean accuracy: {100 * np.mean(results):.2f}%")
         return np.mean(results)
+
+
+if __name__ == "__main__":
+    model = MLP()
+    kfoldxval = KFoldCrossValidation(model, delimiter="\t")
+    kfoldxval.kfold_cross_validation("../datasets/house_votes_84.tsv")

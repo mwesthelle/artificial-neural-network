@@ -5,9 +5,13 @@ from itertools import chain
 from typing import Dict, List, NewType, cast
 
 import numpy as np
+import pandas as pd
 
 from base_model import BaseModel
 from metrics import accuracy
+
+from artificial_neural_network.normalization import normalize_dataset
+from mlp import MLP
 
 FoldType = NewType("FoldType", List[List[List[str]]])
 
@@ -60,6 +64,13 @@ class KFoldCrossValidation:
             values = row.decode("utf-8").strip().split(self.delimiter)
             self.klass_idxes[values[-1]].append(idx)
         file_handle.seek(0)
+
+    def create_normalized_file(self, file_path):
+        original_dataset = pd.read_csv(file_path, sep=self.delimiter)
+        normalized_dataset = normalize_dataset(original_dataset)
+        normalized_file_path = file_path[:-4] + "_normalized.csv"
+        normalized_dataset.to_csv(normalized_file_path, sep=self.delimiter)
+        return normalized_file_path
 
     def generate_stratified_fold(self, k_folds: int) -> List[int]:
         """
@@ -131,8 +142,9 @@ class KFoldCrossValidation:
         self, filename: str, k_folds: int = 10, repetitions: int = 1,
     ):
         results = []
+        normalized_filename = self.create_normalized_file(filename)
         for i_repetition in range(repetitions):
-            with open(filename, "rb") as f:
+            with open(normalized_filename, "rb") as f:
                 seed = i_repetition * 3 + 2
                 folds = self.create_k_folds(f, k_folds, seed)
             fold_idxes: List[int] = list(range(len(cast(FoldType, folds))))
@@ -153,3 +165,9 @@ class KFoldCrossValidation:
             results.append(all_folds_results)
         print(f"Mean accuracy: {100 * np.mean(results):.2f}%")
         return np.mean(results)
+
+
+if __name__ == "__main__":
+    model = MLP()
+    kfoldxval = KFoldCrossValidation(model, delimiter="\t")
+    kfoldxval.kfold_cross_validation("../datasets/house_votes_84.tsv")

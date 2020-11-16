@@ -17,6 +17,10 @@ class IncompatibleNetworkStructureError(Exception):
     pass
 
 
+def shorten(val):
+    return str(round(val, 5))
+
+
 class MLP(BaseModel):
     """
     This is a basic implementation of a MultiLayer Perceptron (MLP).
@@ -201,21 +205,43 @@ class MLP(BaseModel):
         return current_cost >= previous_cost  # TODO implement better logic
 
     def fit_epoch(self, data_iter: List[str], classes: List[str]):
-        self.train(data_iter, classes)
+        self.backpropagation(data_iter, classes)
         current_cost = self.cost_function(data_iter, classes)
         self.learning_curve.append(current_cost)
         return current_cost
 
     def fit(self, data_iter: List[str], classes: List[str]):
-        if self.classes is None:
-            self.classes = classes
-        previous_cost = 0
-        should_continue = True
-        while should_continue:
-            current_cost = self.fit_epoch(data_iter, classes)
-            should_continue = self.evaluate_costs(current_cost, previous_cost)
-            if should_continue:
-                previous_cost = current_cost
+        epochs = 100
+        epsilon = 1e-2
+        max_consecutive_epochs_without_improving = 10
+        consecutive_epochs_without_improving = 0
+        for _ in range(epochs):
+            self.backpropagation(data_iter, classes)
+            loss = self.calculate_loss(data_iter, classes)
+            self.learning_curve.append(loss)
+            previous_loss = None
+            try:
+                previous_loss = self.learning_curve[-1]
+            except IndexError:
+                previous_loss = 0
+            finally:
+                if previous_loss > loss + epsilon or previous_loss < loss - epsilon:
+                    consecutive_epochs_without_improving += 1
+                else:
+                    consecutive_epochs_without_improving = 0
+            if consecutive_epochs_without_improving >= max_consecutive_epochs_without_improving:
+                self.save_model()
+                return
+
+    def save_model(self):
+        for layer in sorted(self.gradients.keys()):
+            layer_grads = [
+                list(neuron_grads) for neuron_grads in self.gradients[layer]
+            ]
+            layer_grads = [
+                ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
+            ]
+            print("; ".join(layer_grads))
 
     def predict(self, test_data: Iterable[List[str]]):
         classes_probabilities, _, _ = self.forward_pass(test_data)

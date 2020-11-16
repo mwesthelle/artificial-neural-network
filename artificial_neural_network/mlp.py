@@ -59,6 +59,7 @@ class MLP(BaseModel):
         self.learning_rate = 0.001
         self._lambda = lambda_
         self.learning_curve = []
+        self.classes = None
         if net_file:
             self.load_network_definition(net_file)
         else:
@@ -200,12 +201,14 @@ class MLP(BaseModel):
         return current_cost >= previous_cost  # TODO implement better logic
 
     def fit_epoch(self, data_iter: List[str], classes: List[str]):
-        self.backpropagation(data_iter, classes)
-        current_cost = self.evaluate_costs(data_iter, classes)
+        self.train(data_iter, classes)
+        current_cost = self.cost_function(data_iter, classes)
         self.learning_curve.append(current_cost)
         return current_cost
 
     def fit(self, data_iter: List[str], classes: List[str]):
+        if self.classes is None:
+            self.classes = classes
         previous_cost = 0
         should_continue = True
         while should_continue:
@@ -215,7 +218,8 @@ class MLP(BaseModel):
                 previous_cost = current_cost
 
     def predict(self, test_data: Iterable[List[str]]):
-        pass
+        classes_probabilities, _, _ = self.forward_pass(test_data)
+        return self.classes.index(max(classes_probabilities))
 
     def calculate_loss(self, X, y):
         m = len(X)

@@ -109,8 +109,6 @@ class MLP(BaseModel):
 
     def one_hot_encode_y(self, Y):
         encoded_y = [self.one_hot_encoder.label_to_decode(y) for y in Y]
-        if type(Y) == list:
-            return encoded_y
         return np.array(encoded_y)
 
     def load_weights(self, weights_filename: str):
@@ -255,7 +253,7 @@ class MLP(BaseModel):
             print("; ".join(layer_grads))
 
     def get_predicted_class_by_probabilities(self, classes_probs):
-        list_of_zeros = [0] * len(classes_probs)
+        list_of_zeros = np.zeros(len(classes_probs))
         max_index = np.argmax(classes_probs)
         list_of_zeros[max_index] = 1
         return self.one_hot_encoder.decode(list_of_zeros)

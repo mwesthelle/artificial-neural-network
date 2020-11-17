@@ -5,8 +5,10 @@ from typing import Iterable, List
 
 import numpy as np
 
-from base_model import BaseModel
-from sigmoid import sigmoid, sigmoid_prime
+from artificial_neural_network.base_model import BaseModel
+from artificial_neural_network.sigmoid import sigmoid, sigmoid_prime
+
+from artificial_neural_network.one_hot_encoder import OneHotEncoder
 
 
 class UninitializedNetworkError(Exception):
@@ -15,6 +17,10 @@ class UninitializedNetworkError(Exception):
 
 class IncompatibleNetworkStructureError(Exception):
     pass
+
+
+def shorten(val):
+    return str(round(val, 5))
 
 
 class MLP(BaseModel):
@@ -38,6 +44,7 @@ class MLP(BaseModel):
 
     def __init__(
         self,
+        classes_names: List[str],
         layers: List[int] = [],
         lambda_: float = 0,
         weight_file: str = None,
@@ -59,6 +66,8 @@ class MLP(BaseModel):
         self.learning_rate = 0.001
         self._lambda = lambda_
         self.learning_curve = []
+        self.one_hot_encoder = OneHotEncoder()
+        self.one_hot_encoder.encode(classes_names)
         if net_file:
             self.load_network_definition(net_file)
         else:
@@ -73,7 +82,7 @@ class MLP(BaseModel):
                 rows = layer2size[idx + 1]
                 # Add bias column
                 cols = layer2size[idx] + 1
-                self.weights[idx] = np.random.normal(size=(rows, cols))
+                self.weights[idx + 1] = np.random.normal(size=(rows, cols))
 
     @property
     def layers(self):
@@ -97,6 +106,10 @@ class MLP(BaseModel):
             self._lambda = value
         else:
             raise AttributeError("regularization factor must be a non-negative value")
+
+    def one_hot_encode_y(self, Y):
+        encoded_y = [self.one_hot_encoder.label_to_decode(y) for y in Y]
+        return np.array(encoded_y)
 
     def load_weights(self, weights_filename: str):
         weights_file = Path(weights_filename).resolve(strict=True)
@@ -201,21 +214,55 @@ class MLP(BaseModel):
 
     def fit_epoch(self, data_iter: List[str], classes: List[str]):
         self.backpropagation(data_iter, classes)
-        current_cost = self.evaluate_costs(data_iter, classes)
+        current_cost = self.cost_function(data_iter, classes)
         self.learning_curve.append(current_cost)
         return current_cost
 
-    def fit(self, data_iter: List[str], classes: List[str]):
-        previous_cost = 0
-        should_continue = True
-        while should_continue:
-            current_cost = self.fit_epoch(data_iter, classes)
-            should_continue = self.evaluate_costs(current_cost, previous_cost)
-            if should_continue:
-                previous_cost = current_cost
+    def fit(self, data_iter: List[str], classes_original: List[str]):
+        classes = self.one_hot_encode_y(classes_original)
+        epochs = 100
+        epsilon = 1e-2
+        max_consecutive_epochs_without_improving = 10
+        consecutive_epochs_without_improving = 0
+        for _ in range(epochs):
+            self.backpropagation(data_iter, classes)
+            loss = self.calculate_loss(data_iter, classes)
+            self.learning_curve.append(loss)
+            previous_loss = None
+            try:
+                previous_loss = self.learning_curve[-1]
+            except IndexError:
+                previous_loss = 0
+            finally:
+                if previous_loss > loss + epsilon or previous_loss < loss - epsilon:
+                    consecutive_epochs_without_improving += 1
+                else:
+                    consecutive_epochs_without_improving = 0
+            if consecutive_epochs_without_improving >= max_consecutive_epochs_without_improving:
+                self.save_model()
+                return
+        self.save_model()
+
+    def save_model(self):
+        with open('saved_model.txt', 'w') as file:
+            for layer in sorted(self.gradients.keys()):
+                layer_grads = [
+                    list(neuron_grads) for neuron_grads in self.gradients[layer]
+                ]
+                layer_grads = [
+                    ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
+                ]
+                file.write("; ".join(layer_grads) + '\n')
+
+    def get_predicted_class_by_probabilities(self, classes_probs):
+        list_of_zeros = np.zeros(len(classes_probs))
+        max_index = np.argmax(classes_probs)
+        list_of_zeros[max_index] = 1
+        return self.one_hot_encoder.decode(list_of_zeros)
 
     def predict(self, test_data: Iterable[List[str]]):
-        pass
+        classes_probabilities, _, _ = self.forward_pass(test_data)
+        return self.get_predicted_class_by_probabilities(classes_probabilities)
 
     def calculate_loss(self, X, y):
         m = len(X)

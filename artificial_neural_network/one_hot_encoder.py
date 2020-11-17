@@ -18,4 +18,4 @@ class OneHotEncoder:
         return self.one_hot_encoding[label]
 
     def decode(self, one_hot_array):
-        return self.int2label[one_hot_array.index(1)]
+        return self.int2label[one_hot_array[1]]

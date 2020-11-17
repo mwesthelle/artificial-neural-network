@@ -241,16 +241,18 @@ class MLP(BaseModel):
             if consecutive_epochs_without_improving >= max_consecutive_epochs_without_improving:
                 self.save_model()
                 return
+        self.save_model()
 
     def save_model(self):
-        for layer in sorted(self.gradients.keys()):
-            layer_grads = [
-                list(neuron_grads) for neuron_grads in self.gradients[layer]
-            ]
-            layer_grads = [
-                ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
-            ]
-            print("; ".join(layer_grads))
+        with open('saved_model.txt', 'w') as file:
+            for layer in sorted(self.gradients.keys()):
+                layer_grads = [
+                    list(neuron_grads) for neuron_grads in self.gradients[layer]
+                ]
+                layer_grads = [
+                    ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
+                ]
+                file.write("; ".join(layer_grads) + '\n')
 
     def get_predicted_class_by_probabilities(self, classes_probs):
         list_of_zeros = np.zeros(len(classes_probs))

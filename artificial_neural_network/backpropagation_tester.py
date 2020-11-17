@@ -1,5 +1,6 @@
 import textwrap
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
+from typing import cast, Tuple
 
 import numpy as np
 
@@ -50,9 +51,9 @@ if __name__ == "__main__":
         model.backpropagation(X, y)
         backprop_gradients = model.gradients
         print("Estimated gradients:")
-        print(estimated_gradients)
+        print(sorted(estimated_gradients.items()))
         print("Backpropagation gradients:")
-        print(backprop_gradients)
+        print(sorted(cast(Tuple, backprop_gradients.items())))
         for grad in sorted(backprop_gradients.keys()):
             is_close = np.isclose(
                 backprop_gradients[grad],

@@ -63,7 +63,7 @@ class MLP(BaseModel):
 
         """
         self.gradients = None
-        self.learning_rate = 0.001
+        self.learning_rate = 1e-2
         self._lambda = lambda_
         self.learning_curve = []
         self.one_hot_encoder = OneHotEncoder()
@@ -77,6 +77,7 @@ class MLP(BaseModel):
         if weight_file:
             self.load_weights(weight_file)
         else:
+            np.random.seed(171)
             self.weights = dict()
             for idx in range(len(self.layers) - 1):
                 rows = layer2size[idx + 1]
@@ -195,37 +196,32 @@ class MLP(BaseModel):
             P[i][:, 0] = 0
             self.gradients[i] = (1 / m) * (self.gradients[i] + P[i])
 
-    def backpropagation(self, X, y):
-        m = len(X)
-        for x_, y_ in zip(X, y):
-            h, a, z = self.forward_pass(x_)
-            deltas = self.calculate_deltas(h, y_, z)
-            self.update_gradients(deltas, a)
-        self.regularize_gradients(m)
-        self.update_weights()
+    def backpropagation(self, data):
+        m = len(data)
+        mini_batch_size = 16
 
-    def train(self, X, y):
-        m = len(X)
-        loss = self.calculate_loss(X, y)
-        self.backpropagation(X, y)
-
-    def evaluate_costs(self, current_cost, previous_cost):
-        return current_cost >= previous_cost  # TODO implement better logic
-
-    def fit_epoch(self, data_iter: List[str], classes: List[str]):
-        self.backpropagation(data_iter, classes)
-        current_cost = self.cost_function(data_iter, classes)
-        self.learning_curve.append(current_cost)
-        return current_cost
+        mini_batches = (
+            data[i : i + mini_batch_size] for i in range(0, m, mini_batch_size)
+        )
+        for mini_batch in mini_batches:
+            for x_, y_ in zip(mini_batch[0], mini_batch[1]):
+                h, a, z = self.forward_pass(x_)
+                deltas = self.calculate_deltas(h, y_, z)
+                self.update_gradients(deltas, a)
+            self.regularize_gradients(m)
+            self.update_weights()
 
     def fit(self, data_iter: List[str], classes_original: List[str]):
         classes = self.one_hot_encode_y(classes_original)
-        epochs = 100
+        epochs = 1000
         epsilon = 1e-2
+
         max_consecutive_epochs_without_improving = 10
         consecutive_epochs_without_improving = 0
-        for _ in range(epochs):
-            self.backpropagation(data_iter, classes)
+        for epoch in range(epochs):
+            if epoch % 100 == 0:
+                print(f"Epoch {epoch}")
+            self.backpropagation((data_iter, classes))
             loss = self.calculate_loss(data_iter, classes)
             self.learning_curve.append(loss)
             previous_loss = None
@@ -238,21 +234,25 @@ class MLP(BaseModel):
                     consecutive_epochs_without_improving += 1
                 else:
                     consecutive_epochs_without_improving = 0
-            if consecutive_epochs_without_improving >= max_consecutive_epochs_without_improving:
+            if (
+                consecutive_epochs_without_improving
+                >= max_consecutive_epochs_without_improving
+            ):
                 self.save_model()
                 return
         self.save_model()
 
     def save_model(self):
-        with open('saved_model.txt', 'w') as file:
+        with open("saved_model.txt", "w") as file:
             for layer in sorted(self.gradients.keys()):
                 layer_grads = [
                     list(neuron_grads) for neuron_grads in self.gradients[layer]
                 ]
                 layer_grads = [
-                    ", ".join(map(shorten, neuron_grads)) for neuron_grads in layer_grads
+                    ", ".join(map(shorten, neuron_grads))
+                    for neuron_grads in layer_grads
                 ]
-                file.write("; ".join(layer_grads) + '\n')
+                file.write("; ".join(layer_grads) + "\n")
 
     def get_predicted_class_by_probabilities(self, classes_probs):
         list_of_zeros = np.zeros(len(classes_probs))

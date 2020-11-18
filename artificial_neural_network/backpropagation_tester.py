@@ -47,7 +47,7 @@ if __name__ == "__main__":
     m = len(X)
     if args.check_gradients:
         estimated_gradients = model.get_estimated_gradients(X, y)
-        model.backpropagation(X, y)
+        model.backpropagation((X, y))
         backprop_gradients = model.gradients
         print("Estimated gradients:")
         print(estimated_gradients)
@@ -66,7 +66,9 @@ if __name__ == "__main__":
         else:
             print("Gradients match!")
     else:
-        model.backpropagation(X, y)
+        J = model.calculate_loss(X, y)
+        print(f"Dataset loss: {J}")
+        model.backpropagation((X, y))
         for layer in sorted(model.gradients.keys()):
             layer_grads = [
                 list(neuron_grads) for neuron_grads in model.gradients[layer]

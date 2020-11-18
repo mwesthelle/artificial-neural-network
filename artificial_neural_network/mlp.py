@@ -5,10 +5,10 @@ from typing import Iterable, List
 
 import numpy as np
 
-from artificial_neural_network.base_model import BaseModel
-from artificial_neural_network.sigmoid import sigmoid, sigmoid_prime
+from base_model import BaseModel
+from sigmoid import sigmoid, sigmoid_prime
 
-from artificial_neural_network.one_hot_encoder import OneHotEncoder
+from one_hot_encoder import OneHotEncoder
 
 
 class UninitializedNetworkError(Exception):
@@ -44,7 +44,7 @@ class MLP(BaseModel):
 
     def __init__(
         self,
-        classes_names: List[str],
+        classes_names: List[str] = [],
         layers: List[int] = [],
         lambda_: float = 0,
         weight_file: str = None,
@@ -62,7 +62,8 @@ class MLP(BaseModel):
             regularization factor; must be a non-negative float
 
         """
-        self.gradients = None
+        self.weight_file = weight_file
+        self.gradients = dict()
         self.learning_rate = 1e-2
         self._lambda = lambda_
         self.learning_curve = []
@@ -73,17 +74,11 @@ class MLP(BaseModel):
         else:
             self._layers = layers
             self._lambda = lambda_
-        layer2size = {idx: size for idx, size in enumerate(self.layers)}
-        if weight_file:
-            self.load_weights(weight_file)
-        else:
-            np.random.seed(171)
-            self.weights = dict()
-            for idx in range(len(self.layers) - 1):
-                rows = layer2size[idx + 1]
-                # Add bias column
-                cols = layer2size[idx] + 1
-                self.weights[idx + 1] = np.random.normal(size=(rows, cols))
+        self.initialize_weights()
+        # used for momentum
+        self.prev_grad_delta = dict()
+        for theta in self.weights:
+            self.prev_grad_delta[theta] = np.zeros((self.weights[theta].shape))
 
     @property
     def layers(self):
@@ -107,6 +102,19 @@ class MLP(BaseModel):
             self._lambda = value
         else:
             raise AttributeError("regularization factor must be a non-negative value")
+
+    def initialize_weights(self):
+        layer2size = {idx: size for idx, size in enumerate(self.layers)}
+        if self.weight_file:
+            self.load_weights(self.weight_file)
+        else:
+            np.random.seed(171)
+            self.weights = dict()
+            for idx in range(len(self.layers) - 1):
+                rows = layer2size[idx + 1]
+                # Add bias column
+                cols = layer2size[idx] + 1
+                self.weights[idx + 1] = np.random.normal(size=(rows, cols))
 
     def one_hot_encode_y(self, Y):
         encoded_y = [self.one_hot_encoder.label_to_decode(y) for y in Y]
@@ -186,8 +194,14 @@ class MLP(BaseModel):
             )
 
     def update_weights(self):
+        beta = 0.85
+        delta = dict()
+        for i in self.gradients:
+            delta[i] = -self.learning_rate * self.gradients[i]
         for i in self.weights:
-            self.weights[i] -= self.learning_rate * self.gradients[i]
+            self.weights[i] += delta[i] + (beta * self.prev_grad_delta[i])
+        for i in self.prev_grad_delta:
+            self.prev_grad_delta[i] = delta[i]
 
     def regularize_gradients(self, m):
         P = dict()
@@ -211,18 +225,20 @@ class MLP(BaseModel):
             self.regularize_gradients(m)
             self.update_weights()
 
-    def fit(self, data_iter: List[str], classes_original: List[str]):
-        classes = self.one_hot_encode_y(classes_original)
-        epochs = 1000
-        epsilon = 1e-2
+    def fit(self, data_iter: List[str], labels: List[str]):
+        self.initialize_weights()
+        encoded_labels = self.one_hot_encode_y(labels)
+        epochs = 15
+        epsilon = 1e-1
 
         max_consecutive_epochs_without_improving = 10
         consecutive_epochs_without_improving = 0
+        loss = 0
         for epoch in range(epochs):
-            if epoch % 100 == 0:
-                print(f"Epoch {epoch}")
-            self.backpropagation((data_iter, classes))
-            loss = self.calculate_loss(data_iter, classes)
+            if epoch % 100 == 0 and epoch > 0:
+                print(f"Epoch {epoch}   training loss: {loss}")
+            self.backpropagation((data_iter, encoded_labels))
+            loss = self.calculate_loss(data_iter, encoded_labels)
             self.learning_curve.append(loss)
             previous_loss = None
             try:

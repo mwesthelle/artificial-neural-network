@@ -176,11 +176,11 @@ class KFoldCrossValidation:
                     pred = self.model.predict(np.array(feat))
                     predictions.append(pred)
                 acc = accuracy(predictions, test_outcomes)
-                print(f"Fold {i + 1} accuracy: {100 * acc:.2f}%")
+                # print(f"Fold {i + 1} accuracy: {100 * acc:.2f}%")
                 all_folds_results.append(acc)
 
             results.append(all_folds_results)
-        print(f"Mean accuracy: {100 * np.mean(results):.2f}%")
+        # print(f"Mean accuracy: {100 * np.mean(results):.2f}%")
         return np.mean(results)
 
 

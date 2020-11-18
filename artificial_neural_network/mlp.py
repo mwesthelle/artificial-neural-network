@@ -49,6 +49,7 @@ class MLP(BaseModel):
         lambda_: float = 0,
         weight_file: str = None,
         net_file: str = None,
+        epochs: int = 50
     ):
         """
         Parameters
@@ -62,6 +63,7 @@ class MLP(BaseModel):
             regularization factor; must be a non-negative float
 
         """
+        self.epochs = epochs
         self.weight_file = weight_file
         self.gradients = dict()
         self.learning_rate = 1e-2
@@ -194,7 +196,7 @@ class MLP(BaseModel):
             )
 
     def update_weights(self):
-        beta = 0.85
+        beta = 0.8
         delta = dict()
         for i in self.gradients:
             delta[i] = -self.learning_rate * self.gradients[i]
@@ -215,7 +217,7 @@ class MLP(BaseModel):
         mini_batch_size = 16
 
         mini_batches = (
-            data[i : i + mini_batch_size] for i in range(0, m, mini_batch_size)
+            data[i: i + mini_batch_size] for i in range(0, m, mini_batch_size)
         )
         for mini_batch in mini_batches:
             for x_, y_ in zip(mini_batch[0], mini_batch[1]):
@@ -227,14 +229,14 @@ class MLP(BaseModel):
 
     def fit(self, data_iter: List[str], labels: List[str]):
         self.initialize_weights()
+        self.learning_curve = []
         encoded_labels = self.one_hot_encode_y(labels)
-        epochs = 15
         epsilon = 1e-1
 
         max_consecutive_epochs_without_improving = 10
         consecutive_epochs_without_improving = 0
         loss = 0
-        for epoch in range(epochs):
+        for epoch in range(self.epochs):
             if epoch % 100 == 0 and epoch > 0:
                 print(f"Epoch {epoch}   training loss: {loss}")
             self.backpropagation((data_iter, encoded_labels))

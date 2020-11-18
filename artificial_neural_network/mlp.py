@@ -47,9 +47,10 @@ class MLP(BaseModel):
         classes_names: List[str] = [],
         layers: List[int] = [],
         lambda_: float = 0,
+        momentum_beta: float = 0,
         weight_file: str = None,
         net_file: str = None,
-        epochs: int = 50
+        epochs: int = 50,
     ):
         """
         Parameters
@@ -68,6 +69,7 @@ class MLP(BaseModel):
         self.gradients = dict()
         self.learning_rate = 1e-2
         self._lambda = lambda_
+        self.momentum_beta = momentum_beta
         self.learning_curve = []
         self.one_hot_encoder = OneHotEncoder()
         self.one_hot_encoder.encode(classes_names)
@@ -196,12 +198,15 @@ class MLP(BaseModel):
             )
 
     def update_weights(self):
-        beta = 0.8
+        for i in self.weights:
+            self.weights[i] -= self.learning_rate * self.gradients[i]
+
+    def update_weights_with_momentum(self):
         delta = dict()
         for i in self.gradients:
             delta[i] = -self.learning_rate * self.gradients[i]
         for i in self.weights:
-            self.weights[i] += delta[i] + (beta * self.prev_grad_delta[i])
+            self.weights[i] += delta[i] + (self.momentum_beta * self.prev_grad_delta[i])
         for i in self.prev_grad_delta:
             self.prev_grad_delta[i] = delta[i]
 
@@ -217,7 +222,7 @@ class MLP(BaseModel):
         mini_batch_size = 16
 
         mini_batches = (
-            data[i: i + mini_batch_size] for i in range(0, m, mini_batch_size)
+            data[i : i + mini_batch_size] for i in range(0, m, mini_batch_size)
         )
         for mini_batch in mini_batches:
             for x_, y_ in zip(mini_batch[0], mini_batch[1]):
@@ -225,7 +230,10 @@ class MLP(BaseModel):
                 deltas = self.calculate_deltas(h, y_, z)
                 self.update_gradients(deltas, a)
             self.regularize_gradients(m)
-            self.update_weights()
+            if self.momentum_beta:
+                self.update_weights_with_momentum()
+            else:
+                self.update_weights()
 
     def fit(self, data_iter: List[str], labels: List[str]):
         self.initialize_weights()

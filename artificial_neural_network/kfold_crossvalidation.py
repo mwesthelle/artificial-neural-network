@@ -182,9 +182,3 @@ class KFoldCrossValidation:
             results.append(all_folds_results)
         # print(f"Mean accuracy: {100 * np.mean(results):.2f}%")
         return np.mean(results)
-
-
-if __name__ == "__main__":
-    model = MLP()
-    kfoldxval = KFoldCrossValidation(model, delimiter="\t")
-    kfoldxval.kfold_cross_validation("../datasets/house_votes_84.tsv")

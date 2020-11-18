@@ -10,7 +10,7 @@ import pandas as pd
 from base_model import BaseModel
 from metrics import accuracy
 
-from artificial_neural_network.normalization import normalize_dataset
+from normalization import normalize_dataset
 from mlp import MLP
 
 FoldType = NewType("FoldType", List[List[List[str]]])
@@ -46,8 +46,7 @@ class KFoldCrossValidation:
         )  # Holds classes as keys and indices they occur on as values
         self.delimiter = delimiter
         self.model = model
-        # TODO: use a better/faster data structure (probably some self-balanced BST, but
-        # implementing the list interface for maximum code reuse)
+        self.labels = set()
         self._line_offsets: List[int] = []
         self.headers = []
 
@@ -63,14 +62,20 @@ class KFoldCrossValidation:
             offset += len(row)
             values = row.decode("utf-8").strip().split(self.delimiter)
             self.klass_idxes[values[-1]].append(idx)
+            self.labels.add(values[-1])
         file_handle.seek(0)
 
     def create_normalized_file(self, file_path):
-        original_dataset = pd.read_csv(file_path, sep=self.delimiter)
-        normalized_dataset = normalize_dataset(original_dataset)
-        normalized_file_path = file_path[:-4] + "_normalized.csv"
-        normalized_dataset.to_csv(normalized_file_path, sep=self.delimiter)
-        return normalized_file_path
+        if "normalized" in file_path:
+            return file_path
+        else:
+            original_dataset = pd.read_csv(file_path, sep=self.delimiter)
+            normalized_dataset = normalize_dataset(original_dataset)
+            normalized_file_path = file_path[:-4] + "_normalized.csv"
+            normalized_dataset.to_csv(
+                normalized_file_path, sep=self.delimiter, index=False
+            )
+            return normalized_file_path
 
     def generate_stratified_fold(self, k_folds: int) -> List[int]:
         """
@@ -120,6 +125,7 @@ class KFoldCrossValidation:
                 file_handle.seek(self._line_offsets[idx])
                 line = file_handle.readline().decode("utf-8").strip()
                 data = line.split(self.delimiter)
+                data = np.array([float(val) for val in data])
                 fold_rows.append(data)
             folds.append(fold_rows)
 
@@ -133,6 +139,7 @@ class KFoldCrossValidation:
             file_handle.seek(self._line_offsets[idx])
             line = file_handle.readline().decode("utf-8").strip()
             data = line.split(self.delimiter)
+            data = np.array([float(val) for val in data])
             remaining_data.append(data)
         folds[-1].extend(remaining_data)
         file_handle.seek(0)
@@ -152,12 +159,22 @@ class KFoldCrossValidation:
             all_folds_results = []
             for i in range(k_folds):
                 test_fold_idx = fold_idxes.pop()
-                test_outcomes = [t[-1] for t in folds[test_fold_idx]]
+                test_outcomes = (str(int(t[-1])) for t in folds[test_fold_idx])
                 train_folds = list(
                     chain(*(folds[:test_fold_idx] + folds[test_fold_idx + 1 :]))
                 )
-                self.model.fit(train_folds, attribute_names=self.headers[:-1])
-                predictions = self.model.predict(folds[test_fold_idx])
+                targets = []
+                features = []
+                for row in train_folds:
+                    features.append(row[:-1])
+                    targets.append(str(int(row[-1])))
+
+                self.model.fit(features, targets)
+                test_features = [row[:-1] for row in folds[test_fold_idx]]
+                predictions = []
+                for feat in test_features:
+                    pred = self.model.predict(np.array(feat))
+                    predictions.append(pred)
                 acc = accuracy(predictions, test_outcomes)
                 print(f"Fold {i + 1} accuracy: {100 * acc:.2f}%")
                 all_folds_results.append(acc)

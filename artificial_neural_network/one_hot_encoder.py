@@ -8,6 +8,7 @@ class OneHotEncoder:
         self.one_hot_encoding = dict()
 
     def encode(self, labels):
+        labels = [str(lab) for lab in labels]
         self.int2label = {idx: label for idx, label in enumerate(labels)}
         label2int = {label: idx for idx, label in enumerate(labels)}
         for label in labels:

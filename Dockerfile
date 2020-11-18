@@ -42,7 +42,10 @@ RUN apt-get update \
     # deps for installing poetry
     curl \
     # deps for building python deps
-    build-essential
+    build-essential \
+    pandoc \
+    texlive-xetex -y
+
 
 # install poetry - respects $POETRY_VERSION & $POETRY_HOME
 RUN curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python

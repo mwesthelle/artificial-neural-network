@@ -37,12 +37,13 @@ ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # `builder-base` stage is used to build deps + create our virtual environment
 FROM python-base as builder-base
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
+RUN apt update \
+    && apt install --no-install-recommends -y \
     # deps for installing poetry
     curl \
     # deps for building python deps
     build-essential \
+    # deps for creating PDFs
     pandoc \
     texlive-xetex -y
 

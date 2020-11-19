@@ -9,6 +9,22 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
 packaging (yet)). Install Poetry, clone the repo, cd into it and run `poetry install` to
 work on the project.
 
+
+## Project Structure
+     .
+    ├── artificial_neural_network     # Source files
+    ├── benchmarks                    # Files used for benchmarks
+    ├── datasets                      # Datasets
+    ├── tests                         # Automated tests
+    └── README.md
+
+## Running the project
+You can run the notebook just by:
+```bash
+docker-compose up
+```
+then access http://127.0.0.1:8080/tree/artificial_neural_network to interact with the jupyter notebook 
+
 ## License
 MIT License
 

@@ -243,9 +243,9 @@ class MLP(BaseModel):
         m = len(data_iter)
         train_data = data_iter[: int(m * 0.8)]
         train_labels = labels[: int(m * 0.8)]
-        val_data = data_iter[-(m - len(train_data)) :]
-        val_labels = labels[-(m - len(train_data)) :]
-        lambdas = [k / 10 for k in range(11)]
+        val_data = data_iter[len(train_data) - m :]
+        val_labels = labels[len(train_data) - m :]
+        lambdas = [0.2, 0.5, 1.0, 5.0, 10.0, 20.0]
         best_model = self.weights.copy()
         best_lambda = 0
         best_J = np.inf
@@ -255,7 +255,6 @@ class MLP(BaseModel):
             self.train(train_data, train_labels)
             J = self.calculate_loss(val_data, val_labels)
             if J < best_J:
-                print("yes")
                 best_model = self.weights.copy()
                 best_lambda = lmbda
                 best_J = J
